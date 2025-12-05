@@ -32,12 +32,12 @@ jobs:
 
       - name: Run AI Code Review
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.GIT_PR_REVIEW }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
-          python << 'EOF'
+          cat > review_script.py << 'PYTHON_SCRIPT'
           import os
           import requests
           from openai import OpenAI
@@ -58,50 +58,47 @@ jobs:
           # Initialize OpenAI client
           client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 
-          # Create the prompt (avoiding f-string with backticks to prevent YAML issues)
-          prompt = """Please review this code diff and provide constructive feedback. Focus on:
-          - Potential bugs or errors
-          - Code quality and best practices
-          - Security issues
-          - Performance concerns
-          - Readability and maintainability
-
-          Here's the diff:
-          """ + diff
+          # Create the prompt
+          prompt = "Please review this code diff and provide constructive feedback. Focus on:\n"
+          prompt += "- Potential bugs or errors\n"
+          prompt += "- Code quality and best practices\n"
+          prompt += "- Security issues\n"
+          prompt += "- Performance concerns\n"
+          prompt += "- Readability and maintainability\n\n"
+          prompt += "Here's the diff:\n" + diff
 
           # Get AI review
           try:
               response = client.chat.completions.create(
                   model="gpt-4o-mini",
-                  messages=[{
-                      "role": "user",
-                      "content": prompt
-                  }],
+                  messages=[{"role": "user", "content": prompt}],
                   temperature=0.3,
                   max_tokens=2000
               )
               review = response.choices[0].message.content
           except Exception as e:
-              review = f"⚠️ Error generating review: {str(e)}"
-              print(f"Error: {e}")
+              review = "Error generating review: " + str(e)
+              print("Error:", e)
 
           # Post comment to PR
-          comment_body = f"""## 🤖 AI Code Review
+          comment_body = "## 🤖 AI Code Review\n\n"
+          comment_body += review
+          comment_body += "\n\n---\n*This is an automated review and is non-blocking.*"
 
-{review}
-
----
-*This is an automated review and is non-blocking.*"""
-
-          url = f"https://api.github.com/repos/{os.environ['REPO']}/issues/{os.environ['PR_NUMBER']}/comments"
+          url = "https://api.github.com/repos/{}/issues/{}/comments".format(
+              os.environ['REPO'], 
+              os.environ['PR_NUMBER']
+          )
           headers = {
-              "Authorization": f"token {os.environ['GITHUB_TOKEN']}",
+              "Authorization": "token {}".format(os.environ['GITHUB_TOKEN']),
               "Accept": "application/vnd.github.v3+json"
           }
           
           response = requests.post(url, json={"body": comment_body}, headers=headers)
-          print(f"Comment posted with status: {response.status_code}")
+          print("Comment posted with status:", response.status_code)
           
           if response.status_code != 201:
-              print(f"Error response: {response.text}")
-          EOF
+              print("Error response:", response.text)
+          PYTHON_SCRIPT
+          
+          python review_script.py
