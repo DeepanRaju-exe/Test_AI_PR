@@ -12,6 +12,8 @@ def calculator(num1, num2, operation):
             result = num1 / num2
         else:
             return "Error: Cannot divide by zero"
+    elif operation == '**':
+        result = num1 * num2
     else:
         return "Error: Invalid operation"
     
@@ -23,3 +25,4 @@ if __name__ == "__main__":
     print(calculator(10, 5, '-'))
     print(calculator(10, 5, '*'))
     print(calculator(10, 5, '/'))
+    print(calculator(2, 3, '**'))
